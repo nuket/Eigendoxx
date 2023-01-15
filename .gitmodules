@@ -1,0 +1,5 @@
+[submodule "exiftool"]
+	path = exiftool
+	url = https://github.com/exiftool/exiftool
+	shallow = true
+
