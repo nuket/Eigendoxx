@@ -37,7 +37,7 @@ function check_gps_tags_() {
     echo "Checking $filename for GPS tags."
     echo
 
-    perl exiftool/exiftool -ext jpg -ext jpeg -sort $filename | grep -E "^GPS"
+    perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -sort $filename | grep -E "^GPS"
 
     if [ $? -eq "0" ]; then
         return 1
@@ -89,7 +89,7 @@ function main_() {
             echo "Automatically removing GPS metadata from staged files."
 
             echo
-            perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}
+            perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}
 
             echo
             echo "You will need to 'git add' and 'git commit' them again."
@@ -113,7 +113,7 @@ function main_() {
             echo
             echo "To strip the JPEG files by hand:"
             echo
-            echo -e "    ${ANSI_SUGGEST}perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}${ANSI_POP}"
+            echo -e "    ${ANSI_SUGGEST}perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}${ANSI_POP}"
         fi
     fi
 

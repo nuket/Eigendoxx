@@ -27,7 +27,8 @@ do its work.
 
 ## Prerequisites
 
-* **Windows**: [Git Bash](https://git-scm.com/) installed (and regularly used)
+* **Windows**: [Git Bash](https://git-scm.com/) installed (and regularly used),
+  has a built-in copy of Perl
 * **Linux and macOS**: git and Perl installed
 
 ## Quickstart
@@ -36,8 +37,7 @@ In your project:
 
 ```
 cd .git/hooks
-mkdir exiftool
-curl -o exiftool/exiftool https://raw.githubusercontent.com/exiftool/exiftool/master/exiftool
+git clone --depth 1 https://github.com/exiftool/exiftool
 curl -s https://raw.githubusercontent.com/nuket/Eigendoxx/main/pre-commit >> pre-commit
 ```
 
