@@ -72,7 +72,7 @@ GPS metadata is a **major issue** if you're checking in a picture taken at home
 or another private location:
 
 ```
-$ perl exiftool/exiftool E5-1.JPG
+$ perl .git/hooks/exiftool/exiftool E5-1.JPG
 
 [...]
 GPS Altitude                    : 918 m Above Sea Level
@@ -152,13 +152,13 @@ To force the commit, run:
 
 To strip the JPEG files by hand:
 
-    perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
+    perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
 ```
 
 Removing GPS metadata from committed files:
 
 ```
-$ perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
+$ perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
     2 image files updated
 ```
 
@@ -168,7 +168,7 @@ There's also to option to remove all GPS metadata from all image files in all
 subfolders, but you may not wish to do this preemptively:
 
 ```
-$ perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -r -i exiftool -gps:all= .
+$ perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -r -i exiftool -gps:all= .
     1 directories scanned
     4 image files updated
 ```
