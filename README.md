@@ -25,6 +25,11 @@ be impractical.
 This hook uses the [exiftool](https://github.com/exiftool/exiftool) program to
 do its work.
 
+## Prerequisites
+
+* **Windows**: [Git Bash](https://git-scm.com/) installed (and regularly used)
+* **Linux and macOS**: git and Perl installed
+
 ## Quickstart
 
 In your project:
