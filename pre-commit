@@ -1,0 +1,128 @@
+#!/bin/sh
+#
+# This script:
+#
+# - checks whether GPS tags are present in any incoming image files
+# - prints command lines to fix / remove GPS data from EXIF metadata
+
+# Eigendoxx Pre-Commit Hook
+# Copyright (c) 2023 Max Vilimpoc (https://vilimpoc.org)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+ANSI_ERROR="\033[0;31m"
+ANSI_SUGGEST="\033[0;32m"
+ANSI_POP="\033[0m"
+
+function check_gps_tags_() {
+    local -r filename=$1
+
+    echo
+    echo "Checking $filename for GPS tags."
+    echo
+
+    perl exiftool/exiftool -ext jpg -ext jpeg -sort $filename | grep -E "^GPS"
+
+    if [ $? -eq "0" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+function check_all_staged_files_() {
+    local -r files=$@
+    local -r files_oneline=$(echo $files | tr '\n' ' ')
+
+    local    errors=0
+
+    for f in $files; do
+        check_gps_tags_ $f
+        errors=$(( $errors + $? ))
+    done
+
+    if [ $errors -eq "0" ]; then
+        echo
+        echo "No GPS tags found in incoming JPEG files. OK to commit."
+    else
+        echo
+        echo "GPS tags found in incoming JPEG files."
+    fi
+
+    return $errors
+}
+
+function main_() {
+    local -r doxx=$1
+
+    local -r files=$(git diff HEAD --name-only)
+    local -r files_oneline=$(echo $files | tr '\n' ' ')
+
+    local    errors=0
+
+    echo
+    echo "Eigendoxx"
+    echo "---------"
+
+    check_all_staged_files_ $files
+    errors=$(( $errors + $? ))
+
+    if [ $errors -gt 0 ]; then
+        if [ "$doxx" == "autofix" ]; then
+            echo
+            echo "Automatically removing GPS metadata from staged files."
+
+            echo
+            perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}
+
+            echo
+            echo "You will need to 'git add' and 'git commit' them again."
+
+            echo
+            git status
+        elif [ "$doxx" == "ok" ]; then
+            echo
+            echo -e "${ANSI_ERROR}Forcing the commit, possibly exposing sensitive information.${POP}"
+
+            errors=0
+        else
+            echo
+            echo "To autofix the files, run:"
+            echo
+            echo -e "    ${ANSI_SUGGEST}DOXX=autofix git commit${ANSI_POP}"
+            echo
+            echo "To force the commit, run:"
+            echo
+            echo -e "    ${ANSI_SUGGEST}DOXX=ok git commit${ANSI_POP}"
+            echo
+            echo "To strip the JPEG files by hand:"
+            echo
+            echo -e "    ${ANSI_SUGGEST}perl exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= ${files_oneline}${ANSI_POP}"
+        fi
+    fi
+
+    return $errors
+}
+
+function test_() {
+    return 0
+}
+
+# return code -> caller's $?
+main_ $DOXX
