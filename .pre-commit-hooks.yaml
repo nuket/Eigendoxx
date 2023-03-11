@@ -1,0 +1,12 @@
+- id: gps-metadata-check
+  name: check GPS location metadata
+  description: checks image files for GPS metadata (requires 'exiftool' on PATH)
+  entry: eigendoxx --pre-commit-check
+  language: script
+  types: [file]
+- id: gps-metadata-remove
+  name: remove GPS location metadata
+  description: removes GPS metadata from image files, saves original files to ._original
+  entry: eigendoxx --pre-commit-remove
+  language: script
+  types: [file]

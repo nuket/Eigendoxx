@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Docker for the win.
+docker run --rm -v "$PWD:/mnt" koalaman/shellcheck:stable eigendoxx

@@ -1,0 +1,88 @@
+#!/bin/bash
+
+# This script:
+#
+# - checks whether GPS tags are present in any incoming image files
+# - prints command lines to fix / remove GPS data from EXIF metadata
+#
+# Was once a longer script, but makes more sense to use the pre-commit
+# framework to do this (https://github.com/pre-commit/pre-commit)
+
+# Eigendoxx Pre-Commit Hook
+# Copyright (c) 2023 Max Vilimpoc (https://vilimpoc.org)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+function usage() {
+    echo
+    echo "Scans the specified files for GPS data and removes it if desired."
+    echo
+    echo "Usage: $0 [--pre-commit-check | --check | --pre-commit-remove | --fix] <*.jpg>"
+    echo "       $0 [--check-all | --fix-all]"
+    echo
+    echo "    --pre-commit-check,  --check    Checks  GPS metadata   in specified files + globs"
+    echo "    --pre-commit-remove, --fix      Removes GPS metadata from specified files + globs"
+    echo
+    echo "    --check-all                     Checks  GPS metadata   in all files in current + subfolders"
+    echo "    --fix-all                       Removes GPS metadata from all files in current + subfolders"
+    echo
+}
+
+if [ $# -ne 0 ]; then
+    case $1 in
+        --pre-commit-check|--check)
+            shift 1
+            count=$(exiftool -sort "$@" | grep -c -E "^GPS")
+            if [ "$count" -ne 0 ]; then
+                echo "GPS data was seen in the images."
+                echo Strip it with: exiftool -P -gps:all= "$@"
+            fi
+            exit "$count"
+            ;;
+        --pre-commit-remove)
+            shift 1
+            echo "Stripping GPS metadata from $*,"
+            echo "you have to 'git add' these again manually."
+            echo
+            echo "Original image files are backed up to *._original filenames."
+            exiftool -P -gps:all= "$@"
+            git status
+            exit 1
+            ;;
+        --fix)
+            shift 1
+            echo "Stripping GPS metadata from $*."
+            echo "Original image files are backed up to *._original filenames."
+            exiftool -P -gps:all= "$@"
+            ;;
+        --check-all)
+            echo "Checking for GPS metadata in all images in current and all subfolders."
+            exiftool -sort -recurse . | grep -E "^File Name|^GPS"
+            ;;
+        --fix-all)
+            echo "Stripping metadata from files in current and all subfolders."
+            exiftool -P -gps:all= -recurse .
+            ;;
+        *)
+            usage
+            ;;
+    esac
+else
+    usage
+fi

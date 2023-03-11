@@ -18,52 +18,61 @@ prior to publication.
 
 Note that this only works well for repos started from scratch.
 
-For repos that already contain objects, there would need to be a way to walk the
+For repos that already contain objects, you would have to walk the
 entire repo and all of its checkins and strip and rewrite its entirety. This may
 be impractical.
 
-This hook uses the [exiftool](https://github.com/exiftool/exiftool) program to
-do its work.
+This hook uses the [exiftool](https://github.com/exiftool/exiftool) program
+to do its work.
 
 ## Prerequisites
 
-* **Windows**: [Git Bash](https://git-scm.com/) installed (and regularly used),
-  has a built-in copy of Perl
-* **Linux and macOS**: git and Perl installed
+* A copy of [`exiftool`](https://github.com/exiftool/exiftool) installed somewhere on your PATH (or via Docker)
+* The [`pre-commit`](https://pre-commit.com/) tool installed via `pip`
 
 ## Quickstart
 
-In your project:
+Add the following to your `.pre-commit-config.yaml` file's `repos` list:
 
 ```
-cd .git/hooks
-git clone --depth 1 https://github.com/exiftool/exiftool
-curl -s https://raw.githubusercontent.com/nuket/Eigendoxx/main/pre-commit >> pre-commit
+repos:
+- repo: https://github.com/nuket/Eigendoxx
+  rev: main
+  hooks:
+  - id: gps-metadata-check
+  - id: gps-metadata-remove
 ```
 
-This appends the checks to any existing `pre-commit` file.
-
-### Parameter: autofix
-
-You can now run:
+Once installed, it will check staged files for GPS data that you may or
+may not want to check in.
 
 ```
-DOXX=autofix git commit
+max@tools:~/eigendoxx-test$ pre-commit
+[INFO] Initializing environment for https://github.com/nuket/Eigendoxx.
+check GPS location metadata..............................................Failed
+- hook id: gps-metadata-check
+- exit code: 48
+
+GPS data was seen in the images.
+Strip it with: exiftool -P -gps:all= E5-2.JPEG E5-1.JPG E5-3.jpg E5-4.jpeg
 ```
 
-to strip the GPS data from incoming image files in your git repo.
-
-Note, the script will only modify files when explicitly told to do so by setting `DOXX=autofix`.
-
-_Be careful_, as it will modify images _in-place_ (and this is _before the file
-is in revision control_).
-
-### Parameter: ok
-
-If you need to check in image files that contain GPS data, you can run:
+## Manual Running
 
 ```
-DOXX=ok git commit
+max@tools:~/eigendoxx$ ./eigendoxx --help
+
+Scans the specified files for GPS data and removes it if desired.
+
+Usage: ./eigendoxx [--pre-commit-check | --check | --pre-commit-remove | --fix] <*.jpg>
+       ./eigendoxx [--check-all | --fix-all]
+
+    --pre-commit-check,  --check    Checks  GPS metadata   in specified files + globs
+    --pre-commit-remove, --fix      Removes GPS metadata from specified files + globs
+
+    --check-all                     Checks  GPS metadata   in all files in current + subfolders
+    --fix-all                       Removes GPS metadata from all files in current + subfolders
+
 ```
 
 ## The Problem
@@ -72,7 +81,7 @@ GPS metadata is a **major issue** if you're checking in a picture taken at home
 or another private location:
 
 ```
-$ perl .git/hooks/exiftool/exiftool E5-1.JPG
+$ exiftool E5-1.JPG
 
 [...]
 GPS Altitude                    : 918 m Above Sea Level
@@ -105,73 +114,12 @@ Changes to be committed:
         new file:   E5-2.JPEG
 ```
 
-The `pre-commit` hook will report the following and disallow the commit:
+The hook will check the files and disallow the commit if any GPS data
+is found.
 
-```
-$ git commit
-
-Checking E5-1.JPG for GPS tags.
-
-GPS Altitude                    : 918 m Above Sea Level
-GPS Altitude Ref                : Above Sea Level
-GPS Date Stamp                  : 2022:09:14
-GPS Date/Time                   : 2022:09:14 14:48:53Z
-GPS Img Direction               : 101
-GPS Img Direction Ref           : Magnetic North
-GPS Latitude                    : 47 deg 22' 56.29" N
-GPS Latitude Ref                : North
-GPS Longitude                   : 10 deg 17' 24.48" E
-GPS Longitude Ref               : East
-GPS Position                    : 47 deg 22' 56.29" N, 10 deg 17' 24.48" E
-GPS Time Stamp                  : 14:48:53
-
-Checking E5-2.JPEG for GPS tags.
-
-GPS Altitude                    : 1861.9 m Above Sea Level
-GPS Altitude Ref                : Above Sea Level
-GPS Date Stamp                  : 2022:09:17
-GPS Date/Time                   : 2022:09:17 08:57:05Z
-GPS Img Direction               : 85
-GPS Img Direction Ref           : Magnetic North
-GPS Latitude                    : 47 deg 11' 17.81" N
-GPS Latitude Ref                : North
-GPS Longitude                   : 10 deg 31' 12.65" E
-GPS Longitude Ref               : East
-GPS Position                    : 47 deg 11' 17.81" N, 10 deg 31' 12.65" E
-GPS Time Stamp                  : 08:57:05
-
-GPS tags found in incoming JPEG files.
-
-To autofix the files, run:
-
-    DOXX=autofix git commit
-
-To force the commit, run:
-
-    DOXX=ok git commit
-
-To strip the JPEG files by hand:
-
-    perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
-```
-
-Removing GPS metadata from committed files:
-
-```
-$ perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -gps:all= E5-1.JPG E5-2.JPEG
-    2 image files updated
-```
-
-Then, `git add` and `git commit` the files again, and everything is good.
-
-There's also to option to remove all GPS metadata from all image files in all
-subfolders, but you may not wish to do this preemptively:
-
-```
-$ perl .git/hooks/exiftool/exiftool -ext jpg -ext jpeg -overwrite_original -P -r -i exiftool -gps:all= .
-    1 directories scanned
-    4 image files updated
-```
+You can either activate the `gps-metadata-remove` target in `.pre-commit-config.yaml`
+or run `eigendoxx --fix <file names>` or `eigendoxx --fix-all` via the command line
+to strip out the GPS tags.
 
 ## The Confirmation
 
@@ -201,7 +149,7 @@ $ diff i1.txt i2.txt
 < GPS Time Stamp                  : 14:48:53
 ```
 
-None of the GPS tags made it to the scrubbed file.
+None of the GPS tags make it to the scrubbed file.
 
 # License
 
