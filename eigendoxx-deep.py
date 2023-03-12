@@ -2,8 +2,10 @@
 
 import argparse
 import concurrent.futures
+import json
 import os
 import re
+import requests
 import subprocess
 import tempfile
 
@@ -115,24 +117,80 @@ def pushd(new_dir):
         os.chdir(previous_dir)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Checks for GPS data in all committed files through the entire repo history.")
-    parser.add_argument('folder')  # 1st positional argument, if empty then current working directory is used
-    parser.add_argument('-v', '--verbose', action='store_true')
-    args = parser.parse_args()
+def check_local_folder(folder, verbose=False):
+    assert isinstance(folder, str)
 
-    if not os.path.isdir(args.folder):
-        print(f'Error: "{args.folder}" does not exist, please specify a folder that can be used')
-        parser.print_usage()
-        exit(1)
-
-    if not os.path.isdir(os.path.join(args.folder, '.git')):
-        print(f'Error: "{args.folder}" is not a local git repository, please specify a folder that contains one')
-        parser.print_usage()
-        exit(1)
-
-    with pushd(args.folder):
+    with pushd(folder):
         image_commits = find_all_image_commits_in_repo()
         gps_commits = check_all_image_commits_in_repo(image_commits)
 
-        print_dangerous_commits(gps_commits, args.verbose)
+        print_dangerous_commits(gps_commits, verbose)
+
+
+def check_git_repo(repo):
+    pass
+
+
+def clone_git_repo(url, folder):
+    assert isinstance(url, str)
+    assert isinstance(folder, str)
+
+
+def check_public_repo_urls(urls):
+    assert isinstance(urls, list)
+
+
+
+
+# Ref: https://stackoverflow.com/questions/29314287/python-requests-download-only-if-newer
+def check_github_user(user, verbose=False):
+    assert isinstance(user, str)
+
+    rest_filename = f'{user}-rest.json'
+    status_filename = f'{user}-status.json'
+
+    rest = {}
+    status = {}
+
+    if not os.path.isfile(rest_filename):
+        r = requests.get(f'https://api.github.com/users/{user}/repos', {"type": "public", "per_page": 100, "page": 1})
+        if r.status_code == 200:
+            with open(rest_filename, 'wb') as file:
+                file.write(r.content)
+                rest = r.json()
+    else:
+        with open(rest_filename, 'r') as file:
+            rest = json.load(file)
+
+    if not os.path.isfile(status_filename):
+        if rest:
+            for item in rest:
+                status[item['html_url']] = { "checked": False, "output": "" }
+            with open(status_filename, 'w') as file:
+                json.dump(status, file)
+
+    print(status)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Checks for GPS data in all committed files through the entire repo history.")
+    parser.add_argument('-f', '--folder')  # 1st positional argument, if empty then current working directory is used
+    parser.add_argument('-u', '--user')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    args = parser.parse_args()
+
+    if args.folder:
+        if not os.path.isdir(args.folder):
+            print(f'Error: "{args.folder}" does not exist, please specify a folder that can be used')
+            parser.print_usage()
+            exit(1)
+
+        if not os.path.isdir(os.path.join(args.folder, '.git')):
+            print(f'Error: "{args.folder}" is not a local git repository, please specify a folder that contains one')
+            parser.print_usage()
+            exit(1)
+
+    elif args.user:
+        check_github_user(args.user)
+
+    # check_local_folder(args.folder)
