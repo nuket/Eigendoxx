@@ -7,6 +7,8 @@ import re
 import subprocess
 import tempfile
 
+from contextlib import contextmanager
+
 def find_all_image_commits_in_repo():
     """Find all of the commits in a repo where an image was Added, Modified.
 
@@ -59,7 +61,7 @@ def check_one_image_commit(tempdir, commit_hash, commit_filename):
     # print(subprocess.run(command, shell=True))
     # print(subprocess.run('ls -lR /tmp', shell=True))
     output_git = subprocess.check_call(command, shell=True)
-    output_exiftool = subprocess.run(f'exiftool {pipe_filename} | grep -E "^GPS"', shell=True, capture_output=True)
+    output_exiftool = subprocess.run(f'exiftool -sort {pipe_filename} | grep -E "^GPS"', shell=True, capture_output=True)
     # print(output_git)
     # print(output_exiftool)
     # output = subprocess.run(command, shell=True)
@@ -83,11 +85,54 @@ def check_all_image_commits_in_repo(image_commits):
         work_package = [{ 'tempdir': tempdir, 'commit_hash': item[0], 'commit_filename': item[1]} for item in image_commits]
         with concurrent.futures.ProcessPoolExecutor() as executor:
             outputs = executor.map(check_one_work_package, work_package)
-            for o in outputs:
-                print(o)
+            return [o for o in outputs if o['output']]
+
+
+def print_dangerous_commits(gps_commits, verbose=False):
+    assert isinstance(gps_commits, list)
+
+    if gps_commits:
+        print()
+        print('The following commits have pushed GPS metadata into the repo:')
+        print()
+
+    for g in gps_commits:
+        print(f"{g['commit_hash']}: {g['commit_filename']}")
+
+        if verbose:
+            data = g['output'].decode(errors='replace')
+            print(data)
+
+
+# Ref: https://gist.github.com/howardhamilton/537e13179489d6896dd3
+@contextmanager
+def pushd(new_dir):
+    previous_dir = os.getcwd()
+    os.chdir(new_dir)
+    try:
+        yield
+    finally:
+        os.chdir(previous_dir)
 
 
 if __name__ == '__main__':
-    args = argparse.ArgumentParser(description="Checks for GPS data in all committed files through the entire repo history.")
-    image_commits = find_all_image_commits_in_repo()
-    check_all_image_commits_in_repo(image_commits)
+    parser = argparse.ArgumentParser(description="Checks for GPS data in all committed files through the entire repo history.")
+    parser.add_argument('folder')  # 1st positional argument, if empty then current working directory is used
+    parser.add_argument('-v', '--verbose', action='store_true')
+    args = parser.parse_args()
+
+    if not os.path.isdir(args.folder):
+        print(f'Error: "{args.folder}" does not exist, please specify a folder that can be used')
+        parser.print_usage()
+        exit(1)
+
+    if not os.path.isdir(os.path.join(args.folder, '.git')):
+        print(f'Error: "{args.folder}" is not a local git repository, please specify a folder that contains one')
+        parser.print_usage()
+        exit(1)
+
+    with pushd(args.folder):
+        image_commits = find_all_image_commits_in_repo()
+        gps_commits = check_all_image_commits_in_repo(image_commits)
+
+        print_dangerous_commits(gps_commits, args.verbose)
