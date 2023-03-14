@@ -8,6 +8,7 @@ import re
 import requests
 import subprocess
 import tempfile
+import urllib
 
 from contextlib import contextmanager
 
@@ -74,7 +75,7 @@ def check_one_image_commit(tempdir, commit_hash, commit_filename):
 
 def check_one_work_package(work_package):
     assert isinstance(work_package, dict)
-    assert work_package.keys() & {'tempdir', 'commit_hash', 'commit_filename'}
+    assert all(k in work_package.keys() for k in ['tempdir', 'commit_hash', 'commit_filename'])
 
     work_package['output'] = check_one_image_commit(work_package['tempdir'], work_package['commit_hash'], work_package['commit_filename'])
     return work_package
@@ -121,60 +122,80 @@ def check_local_folder(folder, verbose=False):
     assert isinstance(folder, str)
 
     with pushd(folder):
-        image_commits = find_all_image_commits_in_repo()
-        gps_commits = check_all_image_commits_in_repo(image_commits)
+        image_commits =  find_all_image_commits_in_repo()
+        gps_commits   = check_all_image_commits_in_repo(image_commits)
 
-        print_dangerous_commits(gps_commits, verbose)
-
-
-def check_git_repo(repo):
-    pass
+        return gps_commits
 
 
-def clone_git_repo(url, folder):
-    assert isinstance(url, str)
-    assert isinstance(folder, str)
+def update_one_repo(repo):
+    assert isinstance(repo, dict)
+    assert all(k in repo.keys() for k in ['remote', 'name'])
+
+    url = repo['remote']
+    folder = repo['name']
+
+    if os.path.isdir(folder):
+        output_git = subprocess.run(f'git -C {folder} fetch origin', shell=True, capture_output=True)
+        repo['update_output'] = output_git.stderr
+    else:
+        output_git = subprocess.run(f'git clone {url} {folder}', shell=True, capture_output=True)
+        repo['update_output'] = output_git.stderr
 
 
-def check_public_repo_urls(urls):
-    assert isinstance(urls, list)
+def check_one_repo(repo):
+    assert isinstance(repo, dict)
+    assert all(k in repo.keys() for k in ['name'])
 
+    gps_commits = check_local_folder(repo['name'])
+    return gps_commits
 
+    # if repo['status'] == 'unchecked':
+    #     clone_git_repo(repo['remote'], repo['name'])
 
 
 # Ref: https://stackoverflow.com/questions/29314287/python-requests-download-only-if-newer
 def check_github_user(user, verbose=False):
+    """Check all of a user's GitHub repos for GPS data"""
     assert isinstance(user, str)
 
-    rest_filename = f'{user}-rest.json'
-    status_filename = f'{user}-status.json'
+    rest_filename   = f'{user}-rest.json'
+    status_filename = f'{user}-status-cache.json'
 
     rest = {}
-    status = {}
+    status_cache = []
 
-    if not os.path.isfile(rest_filename):
+    # Use cache first
+    if os.path.isfile(rest_filename):
+        with open(rest_filename, 'r') as file:
+            rest = json.load(file)
+    else:
         r = requests.get(f'https://api.github.com/users/{user}/repos', {"type": "public", "per_page": 100, "page": 1})
         if r.status_code == 200:
             with open(rest_filename, 'wb') as file:
                 file.write(r.content)
                 rest = r.json()
+
+    # Use cache first
+    if os.path.isfile(status_filename):
+        with open(status_filename, 'r') as file:
+            status_cache = json.load(file)
     else:
-        with open(rest_filename, 'r') as file:
-            rest = json.load(file)
-
-    if not os.path.isfile(status_filename):
         if rest:
-            for item in rest:
-                status[item['html_url']] = { "checked": False, "output": "" }
+            status_cache = [{ 'name': item['name'], 'remote': item['html_url'], "status": "unchecked", "scan_output": "" } for item in rest]
             with open(status_filename, 'w') as file:
-                json.dump(status, file)
+                json.dump(status_cache, file, indent=4)
 
-    print(status)
+    # This part is parallelizable, up to a certain number of threads
+    # Remotes like GitHub may have rate limiting, so maybe 4 - 8 threads is OK
+    for repo in status_cache:
+        update_one_repo(repo)
+        check_one_repo(repo)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Checks for GPS data in all committed files through the entire repo history.")
-    parser.add_argument('-f', '--folder')  # 1st positional argument, if empty then current working directory is used
+    parser = argparse.ArgumentParser(description='Checks for GPS data in all committed files through the entire repo history.')
+    parser.add_argument('-f', '--folder')
     parser.add_argument('-u', '--user')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
@@ -190,7 +211,15 @@ if __name__ == '__main__':
             parser.print_usage()
             exit(1)
 
+        # print_dangerous_commits(gps_commits, verbose)
+
     elif args.user:
-        check_github_user(args.user)
+        user_workdir = 'workdir-' + args.user
+
+        if not os.path.isdir(user_workdir):
+            os.makedirs(user_workdir)
+
+        with pushd(user_workdir):
+            check_github_user(args.user)
 
     # check_local_folder(args.folder)
